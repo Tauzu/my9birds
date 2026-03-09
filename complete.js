@@ -53,8 +53,7 @@ function buildCanvas() {
 
 function roundRect(ctx, x, y, w, h, r) {
   ctx.beginPath();
-  ctx.moveTo(x+r, y);
-  ctx.lineTo(x+w-r, y);
+  ctx.moveTo(x+r, y); ctx.lineTo(x+w-r, y);
   ctx.quadraticCurveTo(x+w, y, x+w, y+r);
   ctx.lineTo(x+w, y+h-r);
   ctx.quadraticCurveTo(x+w, y+h, x+w-r, y+h);
@@ -74,46 +73,78 @@ async function saveImage() {
   link.click();
 }
 
-// imgurにアップロードしてURLを返す
-async function uploadToImgur(blob) {
-  const formData = new FormData();
-  formData.append("image", blob);
-  formData.append("type", "file");
-
-  const res = await fetch("https://api.imgur.com/3/image", {
-    method: "POST",
-    headers: { Authorization: `Client-ID ${IMGUR_CLIENT_ID}` },
-    body: formData,
-  });
-
-  const data = await res.json();
-  if (!data.success) throw new Error("imgur upload failed");
-  return data.data.link;
-}
-
-// X共有
-async function shareX() {
-  // ボタンをローディング状態に
-  const btn = document.querySelector("button[onclick='shareX()']");
-  const originalText = btn.textContent;
+async function shareURL() {
+  const btn = document.getElementById("shareBtn");
   btn.textContent = "アップロード中…";
   btn.disabled = true;
 
   try {
     const canvas = await buildCanvas();
-
     const blob = await new Promise(r => canvas.toBlob(r, "image/png"));
-    const imageUrl = await uploadToImgur(blob);
 
-    const tweetText = `${name}を構成する9つのいきもの\n${imageUrl}`;
-    const tweetUrl = `https://twitter.com/intent/tweet?text=${encodeURIComponent(tweetText)}`;
-    window.open(tweetUrl, "_blank");
+    const formData = new FormData();
+    formData.append("image", blob);
+    formData.append("type", "file");
+
+    const res = await fetch("https://api.imgur.com/3/image", {
+      method: "POST",
+      headers: { Authorization: `Client-ID ${IMGUR_CLIENT_ID}` },
+      body: formData,
+    });
+    const data = await res.json();
+    if (!data.success) throw new Error("upload failed");
+
+    const imageUrl = data.data.link;
+    showURLPanel(imageUrl);
 
   } catch (e) {
-    alert("画像のアップロードに失敗しました。\n画像を保存してからXに手動で添付してください。");
+    alert("アップロードに失敗しました。時間をおいて再試行してください。");
     console.error(e);
   } finally {
-    btn.textContent = originalText;
+    btn.textContent = "URLで共有";
     btn.disabled = false;
   }
+}
+
+function showURLPanel(url) {
+  // 既存パネルがあれば更新
+  let panel = document.getElementById("urlPanel");
+  if (!panel) {
+    panel = document.createElement("div");
+    panel.id = "urlPanel";
+    panel.style.cssText = `
+      margin: 20px auto;
+      max-width: 500px;
+      background: white;
+      border: 1px solid #ddd;
+      border-radius: 10px;
+      padding: 16px;
+      text-align: center;
+      box-shadow: 0 2px 12px rgba(0,0,0,0.1);
+    `;
+    document.body.appendChild(panel);
+  }
+
+  panel.innerHTML = `
+    <p style="margin:0 0 10px;font-size:14px;color:#555;">画像URLが発行されました</p>
+    <div style="display:flex;gap:8px;align-items:center;">
+      <input id="urlInput" readonly value="${url}"
+        style="flex:1;padding:8px;border:1px solid #ccc;border-radius:6px;font-size:13px;" />
+      <button onclick="copyURL()" id="copyBtn"
+        style="padding:8px 14px;background:#333;color:white;border:none;border-radius:6px;cursor:pointer;white-space:nowrap;">
+        コピー
+      </button>
+    </div>
+  `;
+
+  panel.scrollIntoView({ behavior: "smooth" });
+}
+
+function copyURL() {
+  const input = document.getElementById("urlInput");
+  navigator.clipboard.writeText(input.value).then(() => {
+    const btn = document.getElementById("copyBtn");
+    btn.textContent = "コピーしました✓";
+    setTimeout(() => btn.textContent = "コピー", 2000);
+  });
 }

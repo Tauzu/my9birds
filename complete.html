@@ -5,7 +5,6 @@
 <meta charset="UTF-8">
 <title>完成</title>
 <link rel="stylesheet" href="style.css">
-<script src="https://cdn.jsdelivr.net/npm/html2canvas"></script>
 </head>
 
 <body>
@@ -13,16 +12,14 @@
 <h1 id="title"></h1>
 
 <div id="capture">
-
-<div id="resultGrid"></div>
-
+  <div id="resultGrid"></div>
 </div>
 
 <br>
 
 <button onclick="saveImage()">画像保存</button>
 
-<button onclick="shareX()">Xで共有</button>
+<button id="shareBtn" onclick="shareURL()">URLで共有</button>
 
 <script src="complete.js"></script>
 
