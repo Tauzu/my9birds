@@ -12,6 +12,8 @@ images.forEach(url => {
   const img = document.createElement("img");
   img.src = url;
   img.width = 120;
+  // 表示側も正方形クロップ
+  img.style.cssText = "width:120px;height:120px;object-fit:cover;border-radius:8px;";
   grid.appendChild(img);
 });
 
@@ -38,10 +40,18 @@ function buildCanvas() {
         const col = i % cols, row = Math.floor(i / cols);
         const x = padding + col * (cellSize + gap);
         const y = padding + titleHeight + row * (cellSize + gap);
+
         ctx.save();
         roundRect(ctx, x, y, cellSize, cellSize, 8);
         ctx.clip();
-        ctx.drawImage(img, x, y, cellSize, cellSize);
+
+        // object-fit: cover 相当の中央クロップ
+        const iw = img.naturalWidth, ih = img.naturalHeight;
+        const scale = Math.max(cellSize / iw, cellSize / ih);
+        const sw = cellSize / scale, sh = cellSize / scale;
+        const sx = (iw - sw) / 2, sy = (ih - sh) / 2;
+        ctx.drawImage(img, sx, sy, sw, sh, x, y, cellSize, cellSize);
+
         ctx.restore();
         if (++loaded === images.length) resolve(canvas);
       };
@@ -107,7 +117,6 @@ window.shareURL = async function shareURL() {
 }
 
 function showURLPanel(url) {
-  // 既存パネルがあれば更新
   let panel = document.getElementById("urlPanel");
   if (!panel) {
     panel = document.createElement("div");
