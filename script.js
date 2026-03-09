@@ -24,9 +24,26 @@ function closeModal(){
   document.getElementById("modal").classList.add("hidden");
 }
 
+// 日本語を含むかどうか判定
+function containsJapanese(str) {
+  return /[\u3000-\u303f\u3040-\u309f\u30a0-\u30ff\uff00-\uffef\u4e00-\u9faf]/.test(str);
+}
+
+// MyMemory APIで日本語→英語翻訳
+async function translateToEnglish(text) {
+  try {
+    const res = await fetch(
+      `https://api.mymemory.translated.net/get?q=${encodeURIComponent(text)}&langpair=ja|en`
+    );
+    const data = await res.json();
+    return data.responseData.translatedText || text;
+  } catch {
+    return text; // 翻訳失敗時はそのまま使用
+  }
+}
+
 // URLをBase64に変換するヘルパー関数
 async function toBase64(url){
-  // CORSプロキシ経由で画像を取得
   const proxyUrl = `https://corsproxy.io/?${encodeURIComponent(url)}`;
   const res = await fetch(proxyUrl);
   const blob = await res.blob();
@@ -39,32 +56,44 @@ async function toBase64(url){
 }
 
 document.getElementById("searchBox").addEventListener("change", async(e)=>{
-  const word=e.target.value;
-  const res=await fetch(
-    `https://api.unsplash.com/search/photos?query=${word}+animal&per_page=10&client_id=${accessKey}`
+  const word = e.target.value.trim();
+  if (!word) return;
+
+  const results = document.getElementById("results");
+  results.innerHTML = "<p style='color:#888;font-size:13px;'>検索中…</p>";
+
+  // 日本語なら英語に翻訳してから検索
+  let searchWord = word;
+  if (containsJapanese(word)) {
+    searchWord = await translateToEnglish(word);
+  }
+
+  const res = await fetch(
+    `https://api.unsplash.com/search/photos?query=${encodeURIComponent(searchWord)}+animal&per_page=10&client_id=${accessKey}`
   );
-  const data=await res.json();
-  const results=document.getElementById("results");
-  results.innerHTML="";
+  const data = await res.json();
+  results.innerHTML = "";
+
+  if (data.results.length === 0) {
+    results.innerHTML = "<p style='color:#888;font-size:13px;'>見つかりませんでした</p>";
+    return;
+  }
 
   data.results.forEach(photo=>{
     const img=document.createElement("img");
     img.src=photo.urls.small;
 
     img.onclick=async()=>{
-      // ローディング表示
       const cell = document.querySelectorAll(".cell")[currentCell];
       cell.style.backgroundImage="";
       cell.textContent="読込中...";
 
       try {
-        // Base64に変換して保存
         const base64 = await toBase64(photo.urls.small);
         images[currentCell] = base64;
         cell.textContent="";
         cell.style.backgroundImage=`url(${base64})`;
       } catch(err) {
-        // フォールバック: URLをそのまま使用
         images[currentCell] = photo.urls.small;
         cell.textContent="";
         cell.style.backgroundImage=`url(${photo.urls.small})`;
