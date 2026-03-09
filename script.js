@@ -29,16 +29,42 @@ function containsJapanese(str) {
   return /[\u3000-\u303f\u3040-\u309f\u30a0-\u30ff\uff00-\uffef\u4e00-\u9faf]/.test(str);
 }
 
-// MyMemory APIで日本語→英語翻訳
-async function translateToEnglish(text) {
+// Wikipedia APIで日本語記事に対応する英語タイトルを取得
+async function getEnglishViaWikipedia(jaWord) {
   try {
-    const res = await fetch(
-      `https://api.mymemory.translated.net/get?q=${encodeURIComponent(text)}&langpair=ja|en`
+    // 日本語Wikipediaで記事を検索し、英語版の対応タイトルを取得
+    const searchRes = await fetch(
+      `https://ja.wikipedia.org/w/api.php?action=query&titles=${encodeURIComponent(jaWord)}&prop=langlinks&lllang=en&format=json&origin=*`
     );
-    const data = await res.json();
-    return data.responseData.translatedText || text;
+    const searchData = await searchRes.json();
+    const pages = searchData.query.pages;
+    const page = Object.values(pages)[0];
+
+    // 英語版リンクがあればそのタイトルを返す
+    if (page.langlinks && page.langlinks.length > 0) {
+      return page.langlinks[0]["*"];
+    }
+
+    // 直接ヒットしない場合はsearchで候補を探す
+    const suggestRes = await fetch(
+      `https://ja.wikipedia.org/w/api.php?action=query&list=search&srsearch=${encodeURIComponent(jaWord)}&srlimit=1&format=json&origin=*`
+    );
+    const suggestData = await suggestRes.json();
+    const hit = suggestData.query.search[0];
+    if (!hit) return null;
+
+    const hitRes = await fetch(
+      `https://ja.wikipedia.org/w/api.php?action=query&titles=${encodeURIComponent(hit.title)}&prop=langlinks&lllang=en&format=json&origin=*`
+    );
+    const hitData = await hitRes.json();
+    const hitPage = Object.values(hitData.query.pages)[0];
+    if (hitPage.langlinks && hitPage.langlinks.length > 0) {
+      return hitPage.langlinks[0]["*"];
+    }
+
+    return null;
   } catch {
-    return text; // 翻訳失敗時はそのまま使用
+    return null;
   }
 }
 
@@ -62,20 +88,37 @@ document.getElementById("searchBox").addEventListener("change", async(e)=>{
   const results = document.getElementById("results");
   results.innerHTML = "<p style='color:#888;font-size:13px;'>検索中…</p>";
 
-  // 日本語なら英語に翻訳してから検索
   let searchWord = word;
+  let translatedLabel = "";
+
   if (containsJapanese(word)) {
-    searchWord = await translateToEnglish(word);
+    const enWord = await getEnglishViaWikipedia(word);
+    if (enWord) {
+      searchWord = enWord;
+      translatedLabel = enWord;
+    }
+    // Wikipedia失敗時はそのまま日本語で試みる
   }
 
   const res = await fetch(
-    `https://api.unsplash.com/search/photos?query=${encodeURIComponent(searchWord)}+animal&per_page=10&client_id=${accessKey}`
+    `https://api.unsplash.com/search/photos?query=${encodeURIComponent(searchWord)}&per_page=10&client_id=${accessKey}`
   );
   const data = await res.json();
+
   results.innerHTML = "";
 
+  if (translatedLabel) {
+    const label = document.createElement("p");
+    label.style.cssText = "color:#888;font-size:12px;margin:0 0 8px;";
+    label.textContent = `「${word}」→ "${translatedLabel}" で検索`;
+    results.appendChild(label);
+  }
+
   if (data.results.length === 0) {
-    results.innerHTML = "<p style='color:#888;font-size:13px;'>見つかりませんでした</p>";
+    const msg = document.createElement("p");
+    msg.style.cssText = "color:#888;font-size:13px;";
+    msg.textContent = "見つかりませんでした";
+    results.appendChild(msg);
     return;
   }
 
