@@ -73,7 +73,7 @@ async function saveImage() {
   link.click();
 }
 
-async function shareURL() {
+window.shareURL = async function shareURL() {
   const btn = document.getElementById("shareBtn");
   btn.textContent = "アップロード中…";
   btn.disabled = true;
@@ -140,7 +140,7 @@ function showURLPanel(url) {
   panel.scrollIntoView({ behavior: "smooth" });
 }
 
-function copyURL() {
+window.copyURL = function copyURL() {
   const input = document.getElementById("urlInput");
   navigator.clipboard.writeText(input.value).then(() => {
     const btn = document.getElementById("copyBtn");
