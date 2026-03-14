@@ -1,5 +1,3 @@
-const accessKey = "msIwwhLd2l1xdwmnXKufnrGKCcGctIqTcB1UamYHzHk";
-
 let currentCell = null;
 let images = new Array(9).fill(null);
 
@@ -18,10 +16,13 @@ for(let i=0;i<9;i++){
 
 function openModal(){
   document.getElementById("modal").classList.remove("hidden");
+  document.getElementById("overlay").classList.remove("hidden");
+  document.getElementById("searchBox").focus();
 }
 
 function closeModal(){
   document.getElementById("modal").classList.add("hidden");
+  document.getElementById("overlay").classList.add("hidden");
 }
 
 // 日本語を含むかどうか判定
@@ -32,7 +33,6 @@ function containsJapanese(str) {
 // Wikipedia APIで日本語記事に対応する英語タイトルを取得
 async function getEnglishViaWikipedia(jaWord) {
   try {
-    // 日本語Wikipediaで記事を検索し、英語版の対応タイトルを取得
     const searchRes = await fetch(
       `https://ja.wikipedia.org/w/api.php?action=query&titles=${encodeURIComponent(jaWord)}&prop=langlinks&lllang=en&format=json&origin=*`
     );
@@ -40,12 +40,10 @@ async function getEnglishViaWikipedia(jaWord) {
     const pages = searchData.query.pages;
     const page = Object.values(pages)[0];
 
-    // 英語版リンクがあればそのタイトルを返す
     if (page.langlinks && page.langlinks.length > 0) {
       return page.langlinks[0]["*"];
     }
 
-    // 直接ヒットしない場合はsearchで候補を探す
     const suggestRes = await fetch(
       `https://ja.wikipedia.org/w/api.php?action=query&list=search&srsearch=${encodeURIComponent(jaWord)}&srlimit=1&format=json&origin=*`
     );
@@ -68,17 +66,26 @@ async function getEnglishViaWikipedia(jaWord) {
   }
 }
 
-// URLをBase64に変換するヘルパー関数
+// URLをBase64に変換するヘルパー関数（プロキシ→直接の順で試みる）
 async function toBase64(url){
-  const proxyUrl = `https://corsproxy.io/?${encodeURIComponent(url)}`;
-  const res = await fetch(proxyUrl);
-  const blob = await res.blob();
-  return new Promise((resolve, reject) => {
-    const reader = new FileReader();
-    reader.onloadend = () => resolve(reader.result);
-    reader.onerror = reject;
-    reader.readAsDataURL(blob);
-  });
+  const tryFetch = async (fetchUrl) => {
+    const res = await fetch(fetchUrl);
+    if (!res.ok) throw new Error(res.status);
+    const blob = await res.blob();
+    return new Promise((resolve, reject) => {
+      const reader = new FileReader();
+      reader.onloadend = () => resolve(reader.result);
+      reader.onerror = reject;
+      reader.readAsDataURL(blob);
+    });
+  };
+
+  const wsrvUrl = `https://wsrv.nl/?url=${encodeURIComponent(url.replace(/^https?:\/\//, ''))}`;
+  try {
+    return await tryFetch(wsrvUrl);
+  } catch {
+    return await tryFetch(url);
+  }
 }
 
 document.getElementById("searchBox").addEventListener("change", async(e)=>{
@@ -86,7 +93,12 @@ document.getElementById("searchBox").addEventListener("change", async(e)=>{
   if (!word) return;
 
   const results = document.getElementById("results");
-  results.innerHTML = "<p style='color:#888;font-size:13px;'>検索中…</p>";
+  results.innerHTML = "";
+
+  const status = document.createElement("p");
+  status.className = "result-status";
+  status.textContent = "検索中…";
+  results.appendChild(status);
 
   let searchWord = word;
   let translatedLabel = "";
@@ -97,11 +109,11 @@ document.getElementById("searchBox").addEventListener("change", async(e)=>{
       searchWord = enWord;
       translatedLabel = enWord;
     }
-    // Wikipedia失敗時はそのまま日本語で試みる
   }
 
+  // iNaturalist API で鳥類（taxon_id=3 = Aves）に限定して検索
   const res = await fetch(
-    `https://api.unsplash.com/search/photos?query=${encodeURIComponent(searchWord)}&per_page=10&client_id=${accessKey}`
+    `https://api.inaturalist.org/v1/taxa?q=${encodeURIComponent(searchWord)}&taxon_id=3&per_page=12`
   );
   const data = await res.json();
 
@@ -109,53 +121,77 @@ document.getElementById("searchBox").addEventListener("change", async(e)=>{
 
   if (translatedLabel) {
     const label = document.createElement("p");
-    label.style.cssText = "color:#888;font-size:12px;margin:0 0 8px;";
+    label.className = "result-translate";
     label.textContent = `「${word}」→ "${translatedLabel}" で検索`;
     results.appendChild(label);
   }
 
-  if (data.results.length === 0) {
+  const birds = data.results.filter(b => b.default_photo);
+
+  if (birds.length === 0) {
     const msg = document.createElement("p");
-    msg.style.cssText = "color:#888;font-size:13px;";
+    msg.className = "result-status";
     msg.textContent = "見つかりませんでした";
     results.appendChild(msg);
     return;
   }
 
-  data.results.forEach(photo=>{
-    const img=document.createElement("img");
-    img.src=photo.urls.small;
+  const resultGrid = document.createElement("div");
+  resultGrid.className = "results-grid";
+  results.appendChild(resultGrid);
 
-    img.onclick=async()=>{
-      const cell = document.querySelectorAll(".cell")[currentCell];
-      cell.style.backgroundImage="";
-      cell.textContent="読込中...";
+  birds.forEach(bird => {
+    const photoUrl = bird.default_photo.medium_url || bird.default_photo.square_url;
+    if (!photoUrl) return;
+    const name = bird.preferred_common_name || bird.name;
+
+    const wrapper = document.createElement("div");
+    wrapper.className = "result-item";
+
+    const img = document.createElement("img");
+    img.src = photoUrl;
+    img.alt = name;
+
+    const nameLabel = document.createElement("p");
+    nameLabel.className = "result-name";
+    nameLabel.textContent = name;
+
+    wrapper.appendChild(img);
+    wrapper.appendChild(nameLabel);
+
+    wrapper.onclick = async () => {
+      const cellIndex = currentCell;
+      const cell = document.querySelectorAll(".cell")[cellIndex];
+      cell.classList.remove("filled");
+      cell.style.backgroundImage = "";
+      cell.textContent = "読込中…";
 
       try {
-        const base64 = await toBase64(photo.urls.small);
-        images[currentCell] = base64;
-        cell.textContent="";
-        cell.style.backgroundImage=`url(${base64})`;
+        const base64 = await toBase64(photoUrl);
+        images[cellIndex] = base64;
+        cell.textContent = "";
+        cell.style.backgroundImage = `url(${base64})`;
       } catch(err) {
-        images[currentCell] = photo.urls.small;
-        cell.textContent="";
-        cell.style.backgroundImage=`url(${photo.urls.small})`;
+        images[cellIndex] = photoUrl;
+        cell.textContent = "";
+        cell.style.backgroundImage = `url(${photoUrl})`;
       }
 
+      cell.classList.add("filled");
       closeModal();
-    }
+    };
 
-    results.appendChild(img);
+    resultGrid.appendChild(wrapper);
   });
 });
 
 document.getElementById("completeBtn").onclick=()=>{
   if(images.includes(null)){
-    alert("9つすべて選んでください");
+    alert("9羽すべて選んでください");
     return;
   }
 
-  const name=document.getElementById("username").value;
+  const name=document.getElementById("username").value.trim();
   if(!name){
     alert("名前を入力してください");
     return;

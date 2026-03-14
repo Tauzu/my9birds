@@ -1,25 +1,26 @@
 <!DOCTYPE html>
 <html lang="ja">
-
 <head>
 <meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
 <title>完成</title>
 <link rel="stylesheet" href="style.css">
 </head>
 
 <body>
 
-<h1 id="title"></h1>
+<div class="complete-header">
+  <h1 id="title"></h1>
+</div>
 
 <div id="capture">
   <div id="resultGrid"></div>
 </div>
 
-<br>
-
-<button onclick="saveImage()">画像保存</button>
-
-<button id="shareBtn" onclick="shareURL()">URLで共有</button>
+<div class="complete-actions">
+  <button onclick="saveImage()">画像保存</button>
+  <button id="shareBtn" onclick="shareURL()">URLで共有</button>
+</div>
 
 <script src="complete.js"></script>
 

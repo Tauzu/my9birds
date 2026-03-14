@@ -1,19 +1,17 @@
 const images = JSON.parse(localStorage.getItem("images"));
-const name = localStorage.getItem("name");
+const userName = localStorage.getItem("name");
 
 // imgur Client ID（匿名アップロード用）
 const IMGUR_CLIENT_ID = "546c25a59c58ad7";
 
 document.getElementById("title").innerText =
-  `${name}を構成する9つのいきもの`;
+  `${userName}を構成する9羽の鳥`;
 
 const grid = document.getElementById("resultGrid");
 images.forEach(url => {
   const img = document.createElement("img");
   img.src = url;
-  img.width = 120;
-  // 表示側も正方形クロップ
-  img.style.cssText = "width:120px;height:120px;object-fit:cover;border-radius:8px;";
+  img.width = 150;
   grid.appendChild(img);
 });
 
@@ -31,7 +29,7 @@ function buildCanvas() {
     ctx.fillStyle = "#333";
     ctx.font = "bold 18px sans-serif";
     ctx.textAlign = "center";
-    ctx.fillText(`${name}を構成する9つのいきもの`, canvas.width / 2, padding + 30);
+    ctx.fillText(`${userName}を構成する9羽の鳥`, canvas.width / 2, padding + 30);
 
     let loaded = 0;
     images.forEach((url, i) => {
@@ -78,7 +76,7 @@ function roundRect(ctx, x, y, w, h, r) {
 async function saveImage() {
   const canvas = await buildCanvas();
   const link = document.createElement("a");
-  link.download = "9creatures.png";
+  link.download = "my9birds.png";
   link.href = canvas.toDataURL("image/png");
   link.click();
 }

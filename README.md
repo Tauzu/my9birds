@@ -1,4 +1,4 @@
-# my9creatures
+# my9birds
 
 ## Pages
-https://tauzu.github.io/my9creatures/
+https://git.laplaceweb.com/ida_yuta/my9birds/pages/index.html
