@@ -1,4 +1,4 @@
 # my9birds
 
 ## Pages
-https://tauzu.github.io/my9creatures/
+https://tauzu.github.io/my9birds/
